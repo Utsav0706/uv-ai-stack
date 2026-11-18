@@ -1,0 +1,40 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
+
+# Local SQLite databases and scratch run outputs
+*.db
+runs/
+
+# MLflow, DVC and model files (tracked by MLflow / DVC, never by git)
+mlruns/
+mlartifacts/
+.dvc/cache/
+.dvc/tmp/
+*.gguf
+
+# Embedding cache (pitwall baseline)
+.cache/
+
+# Model bundles and llama.cpp tools (big; the bundle manifest records their hashes)
+bundles/
+.llama.cpp/

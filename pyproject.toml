@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "uv-ai-stack"
+version = "0.1.0"
+description = "Scout, Gearbox, Dyno and Pitwall connected into one system."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [{ name = "Utsav Jivani (Uv)" }]
+# Only what the code imports today. Each step adds its own dependencies.
+dependencies = [
+    "typer>=0.15",
+    "pydantic>=2.9",
+    "httpx>=0.28",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[project.scripts]
+stack = "stack.cli:app"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/stack"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

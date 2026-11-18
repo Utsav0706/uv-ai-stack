@@ -1,0 +1,31 @@
+# The four projects that make up the system, each pinned to a commit: the combination
+# that was tested together. Move a pin on purpose with `stack pins --update` (a
+# reviewed change), never by accident.
+
+[[project]]
+name = "scout"
+role = "research agent: plans, searches, reads, writes and verifies a cited report"
+repo = "Utsav0706/scout"
+path = "../scout"
+commit = "5467a6afda437b8c1a5a951c47591a869f082738"
+
+[[project]]
+name = "gearbox"
+role = "LLM router: picks the cheapest model tier that answers a request well"
+repo = "Utsav0706/gearbox"
+path = "../gearbox"
+commit = "82929741bd68f659e2a71027668e207f14183914"
+
+[[project]]
+name = "dyno"
+role = "agent eval harness: cases, scorers, judges, calibration, CI gate"
+repo = "Utsav0706/dyno"
+path = "../dyno"
+commit = "bf089379bc6fe549d514b809f4b1bad534f599a0"
+
+[[project]]
+name = "pitwall"
+role = "LLMOps: data, training, registry, gate, canary, monitoring, drift, retraining"
+repo = "Utsav0706/pitwall"
+path = "../pitwall"
+commit = "f28de5a467e2a3a77edaa5bf91df9ea5f52a5b88"
