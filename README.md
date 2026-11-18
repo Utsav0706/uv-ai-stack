@@ -16,7 +16,7 @@ by importing each other's code. This repository holds what belongs to the combin
 the pinned versions that were tested together, and (in later steps) one command to run
 the whole system and the loop that goes through all four.
 
-**Status:** I1 of the integration, pinned versions.
+**Status:** I2 done: Gearbox metrics (incl. cost) in Pitwall's Prometheus and Grafana.
 
 ## Pinned versions
 
