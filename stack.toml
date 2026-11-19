@@ -7,25 +7,25 @@ name = "scout"
 role = "research agent: plans, searches, reads, writes and verifies a cited report"
 repo = "Utsav0706/scout"
 path = "../scout"
-commit = "5467a6afda437b8c1a5a951c47591a869f082738"
+commit = "3beedf85e850db36c1eff2f154a74431f87f27c9"
 
 [[project]]
 name = "gearbox"
 role = "LLM router: picks the cheapest model tier that answers a request well"
 repo = "Utsav0706/gearbox"
 path = "../gearbox"
-commit = "2d8e4fc14d93a30fc925e0fcbc60dc8506427851"
+commit = "84bb3a5eefb18b2faace0cf3a6744a7f5a2f9068"
 
 [[project]]
 name = "dyno"
 role = "agent eval harness: cases, scorers, judges, calibration, CI gate"
 repo = "Utsav0706/dyno"
 path = "../dyno"
-commit = "bf089379bc6fe549d514b809f4b1bad534f599a0"
+commit = "ddd99832db9cfaff3b564888e83ab9994460cfbe"
 
 [[project]]
 name = "pitwall"
 role = "LLMOps: data, training, registry, gate, canary, monitoring, drift, retraining"
 repo = "Utsav0706/pitwall"
 path = "../pitwall"
-commit = "96fdff482697f7418ffa62a58e850c6b6e50ba76"
+commit = "11bcebf30f993bc0210ca87e07673fd631762d0e"
