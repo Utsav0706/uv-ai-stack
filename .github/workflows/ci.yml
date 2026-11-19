@@ -73,6 +73,8 @@ jobs:
           open("stack.toml", "w", encoding="utf-8").write(text)
           PY
           stack config gearbox --pitwall-url http://pitwall:8003 --out runs/gearbox-compose.yaml
+      - name: A throwaway Scout secret (Scout refuses to start without one)
+        run: echo "JWT_SECRET=$(openssl rand -hex 32)" > projects/scout/.env
       - name: Build and start
         env: {PROJECTS_DIR: ./projects}
         run: docker compose up -d --build
