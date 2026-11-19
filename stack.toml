@@ -21,7 +21,7 @@ name = "dyno"
 role = "agent eval harness: cases, scorers, judges, calibration, CI gate"
 repo = "Utsav0706/dyno"
 path = "../dyno"
-commit = "ddd99832db9cfaff3b564888e83ab9994460cfbe"
+commit = "2197d2f8b6a17f0439bc49c31946e3c41f2fe9ff"
 
 [[project]]
 name = "pitwall"
