@@ -14,7 +14,7 @@ name = "gearbox"
 role = "LLM router: picks the cheapest model tier that answers a request well"
 repo = "Utsav0706/gearbox"
 path = "../gearbox"
-commit = "3a42e1b8d317ae4a9088b218239d56d43b9b2c5f"
+commit = "2d8e4fc14d93a30fc925e0fcbc60dc8506427851"
 
 [[project]]
 name = "dyno"
