@@ -4,6 +4,7 @@
   `--update`: move them);
 - `stack up` / `status` / `down`: the whole system on this machine;
 - `stack config`: a project's config for the combined system (for docker-compose.yml).
+- `stack loop`: route, drift check, Dyno gate (dry run unless `--promote`), report.
 """
 
 from __future__ import annotations
@@ -210,3 +211,60 @@ def config_cmd(
         typer.echo("error: project must be gearbox or scout", err=True)
         raise typer.Exit(1)
     typer.echo(f"wrote {out}")
+
+
+@app.command()
+def loop(
+    n: Annotated[int, typer.Option(help="Prompts to route through Gearbox.")] = 60,
+    source: Annotated[
+        str, typer.Option(help="Pitwall's prompts: test (general) or pool_new (drifted).")
+    ] = "test",
+    seed: Annotated[
+        int | None, typer.Option(help="Prompt order (default: a new one each run, printed).")
+    ] = None,
+    promote: Annotated[
+        bool,
+        typer.Option(
+            "--promote", help="Real release: PAID canary through Gearbox, then the gate for real."
+        ),
+    ] = False,
+    cap_gbp: Annotated[float, typer.Option(help="Most the canary may spend (--promote).")] = 0.05,
+    gate_ref: Annotated[
+        str, typer.Option(help="Version the gate checks against production: candidate or vN.")
+    ] = "candidate",
+) -> None:
+    """The loop through all four: route through Gearbox and Pitwall, check drift, run
+    Dyno's gate (dry run unless --promote), report. Needs `stack up` first."""
+    from stack import loop as loop_mod
+    from stack import runner
+    from stack import services as svc
+
+    root, projects, all_services = _setup()
+    needed = {"mlflow", "pitwall", "gearbox"}
+    down = [s.name for s in all_services if s.name in needed and not runner.healthy(s.health)]
+    if down:
+        typer.echo(f"error: not running: {', '.join(down)} (run `stack up` first)", err=True)
+        raise typer.Exit(1)
+    pitwall_dir = (root / projects["pitwall"].path).resolve()
+    if seed is None:
+        import random
+
+        seed = random.randrange(1_000_000)  # fresh prompts reach Pitwall, not Gearbox's cache
+    typer.echo(f"prompts: {n} from Pitwall's {source} set, seed {seed}")
+    texts = loop_mod.prompts(pitwall_dir, source, n, seed)
+    cli = loop_mod.pitwall_cli(pitwall_dir, svc.venv_bin(pitwall_dir, "pitwall"))
+    try:
+        with httpx.Client(base_url=loop_mod.GEARBOX, timeout=180) as client:
+            loop_mod.run_loop(
+                texts=texts,
+                client=client,
+                pitwall=cli,
+                echo=typer.echo,
+                promote=promote,
+                cap_gbp=cap_gbp,
+                gate_ref=gate_ref,
+            )
+    except loop_mod.LoopStopped as exc:
+        typer.echo(f"\nstopped: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo("\nloop complete")

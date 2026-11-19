@@ -24,9 +24,9 @@ evaluation harness that judges them, and the operations around the router's own 
 | [Dyno](https://github.com/Utsav0706/dyno) | Evaluation harness for agents: test cases, trajectory scorers, calibrated LLM judges, run comparison, a CI gate |
 | [Pitwall](https://github.com/Utsav0706/pitwall) | LLMOps for Gearbox's router model: versioned data, fine-tuning, registry, gate, canary, monitoring, drift, retraining |
 
-**Status:** all four projects complete; integration steps I1-I4 and I6 done. Still to
-come: I5 (Scout through Gearbox on the full golden set, judged by Dyno) and the cloud
-deploy.
+**Status:** all four projects complete; integration steps I1-I4, I6 and most of I5 done
+(`stack loop`, the tooling for the Scout comparison). Still to come: I5b (Scout through
+Gearbox on the full golden set, judged by Dyno) and the cloud deploy.
 
 ## How they connect
 
@@ -88,6 +88,29 @@ watched for drift, retrained, gated and rolled out again.
 Every step was run live; the record is in
 [Pitwall's README](https://github.com/Utsav0706/pitwall#the-loop-run-end-to-end).
 
+`stack loop` runs the loop against the system `stack up` started, in one command:
+
+```bash
+stack loop
+```
+
+1. **Route:** 60 of Pitwall's test prompts through Gearbox, which asks Pitwall for the
+   tier (10% go to the candidate as the canary). Capped at the local tier, so it's free.
+2. **Watch:** Pitwall's drift check on the prompts its production model routed (cached
+   answers and canary requests don't count; the check needs at least 30).
+3. **Gate:** Dyno's promotion gate on the candidate as a dry run: nothing in the
+   registry moves. When the candidate already is production there is nothing to
+   release, and `--gate-ref v1` gates a named version instead.
+4. **Report:** drift, the gate's verdict, the alerts Prometheus has firing.
+
+`--source pool_new` sends the drifted prompts instead, and `--promote` makes step 3 the
+real release: a canary replay through Gearbox (paid, capped by `--cap-gbp`), its report
+in MLflow, then the gate, which moves the production alias on a pass. A live run on
+19 November: 60 prompts (43 routed by production, 7 by the canary, 10 from Gearbox's
+cache), no drift, and the gate on v1 against production v2 passed every rule (task
+success 48% vs 48%, under-routing 8.4% vs 8.4%, p95 488 ms), so v1 *would promote*: the
+two versions route the same prompts the same way. The aliases didn't move.
+
 ## What connecting them showed
 
 | Step | Result |
@@ -95,7 +118,7 @@ Every step was run live; the record is in
 | I2: Gearbox metrics in Prometheus | Both targets scraped; 8 alert rules; cost per 1,000 requests measured live at £0.073 on a mixed-tier sample |
 | I3: Gearbox's live evaluation through Dyno | 30 test prompts: Dyno quality 90%, 91% saved against always-L, Dyno's judge agrees with Gearbox's own on 28 of 30 ([report](https://github.com/Utsav0706/gearbox/blob/main/reports/eval_dyno.md)) |
 | I4: the whole system as one command | 6 services healthy in ~2.5 GB; a request through Gearbox routed by Pitwall; CI builds the pinned commits in Docker Compose and passes 10 smoke checks |
-| I5: Scout through Gearbox, judged by Dyno | Pending (after Tavily's monthly reset; ~£2.50) |
+| I5: Scout through Gearbox, judged by Dyno | Pending (after Tavily's monthly reset, ~£2.80); the 1-case smoke test passed both ways, £0.0181 -> £0.0135 a question |
 
 Gearbox's dashboard in Grafana while the system runs (`stack up`, free tier-S traffic
 routed by Pitwall):
@@ -177,16 +200,15 @@ Paid API calls, as each project's own README or reports record them:
 | Dyno (baselines, before/after, gate demo, judges) | under £4 |
 | Scout | £1.63 for the 50-question baseline, £0.055 for the red-team run |
 | Pitwall (training on free Colab; canaries, sampled judging) | about £0.022 |
-| Integration I1-I4 | about £0.02 |
+| Integration so far (I1-I5a) | about £0.06 |
 
 Every paid command shows an estimate first and stops at a cap. Running costs are in each
 project's README.
 
 ## Limits and what's next
 
-- **I5** measures Scout through Gearbox on the full 50-question golden set, judged by
-  Dyno, before that becomes the default (~£2.50). It also adds `stack loop`, one command
-  for the whole loop above.
+- **I5b** measures Scout through Gearbox on the full 50-question golden set, judged by
+  Dyno, before that becomes the default (~£2.80; the tooling is built and smoke-tested).
 - **The cloud deploy** of all four together is planned separately; today everything runs
   on one machine or in Compose.
 - **The router model doesn't beat "always use M".** Gearbox, Pitwall and Dyno all found
@@ -206,5 +228,7 @@ More: [visitor FAQ](docs/faq.md).
 | I2 | Gearbox metrics (incl. cost) in Pitwall's Prometheus and Grafana | £0.003 |
 | I3 | Gearbox's live evaluation through Dyno | £0.018 |
 | I4 | One command to start the whole system; Compose file checked in CI | £0 |
-| I5 | Scout through Gearbox, judged by Dyno on the full golden set; the loop script | ~£2.50 |
+| I5a | Dyno's eval workflow can route Scout through Gearbox; the comparison report; a 1-case smoke test | £0.036 |
+| I5b | Scout through Gearbox, judged by Dyno on the full golden set | ~£2.80 |
+| I5c | `stack loop`: the loop through all four as one command | £0 |
 | I6 | This README and the visitor FAQ | £0 |
