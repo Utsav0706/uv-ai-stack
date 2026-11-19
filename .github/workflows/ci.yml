@@ -38,3 +38,47 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: stack pins --remote
+
+  # The whole system in Docker Compose, built from the pinned commits: every service up,
+  # Gearbox routing through Pitwall, Prometheus scraping both, Grafana's dashboards.
+  system:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Pinned commits
+        id: pins
+        run: |
+          python - <<'PY' >> "$GITHUB_OUTPUT"
+          import tomllib
+          for p in tomllib.load(open("stack.toml", "rb"))["project"]:
+              print(f"{p['name']}={p['commit']}")
+          PY
+      - uses: actions/checkout@v4
+        with: {repository: Utsav0706/scout, ref: "${{ steps.pins.outputs.scout }}", path: projects/scout}
+      - uses: actions/checkout@v4
+        with: {repository: Utsav0706/gearbox, ref: "${{ steps.pins.outputs.gearbox }}", path: projects/gearbox}
+      - uses: actions/checkout@v4
+        with: {repository: Utsav0706/pitwall, ref: "${{ steps.pins.outputs.pitwall }}", path: projects/pitwall}
+      - name: Point the stack at the CI checkouts
+        run: |
+          python - <<'PY'
+          import re
+          text = open("stack.toml", encoding="utf-8").read()
+          text = re.sub(r'path = "\.\./(\w+)"', r'path = "projects/\1"', text)
+          open("stack.toml", "w", encoding="utf-8").write(text)
+          PY
+          stack config gearbox --pitwall-url http://pitwall:8003 --out runs/gearbox-compose.yaml
+      - name: Build and start
+        env: {PROJECTS_DIR: ./projects}
+        run: docker compose up -d --build
+      - name: Smoke test
+        run: python3 scripts/system_smoke.py
+      - name: Logs on failure
+        if: failure()
+        env: {PROJECTS_DIR: ./projects}
+        run: docker compose logs --tail 60

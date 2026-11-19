@@ -38,3 +38,6 @@ mlartifacts/
 # Model bundles and llama.cpp tools (big; the bundle manifest records their hashes)
 bundles/
 .llama.cpp/
+
+# Project checkouts for the Compose build in CI (PROJECTS_DIR=./projects)
+projects/

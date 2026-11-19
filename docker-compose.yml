@@ -1,0 +1,112 @@
+# The whole system on Linux / Docker: Scout, Gearbox and Pitwall with their stores, and
+# Pitwall's MLflow, Prometheus and Grafana. Each project is built from its own folder
+# (PROJECTS_DIR, default the sibling checkouts ../scout etc.; CI checks out the pinned
+# commits). Service names carry the project's name: the projects' own Compose files
+# all use "api", "db" and "redis".
+#
+#   stack config gearbox --pitwall-url http://pitwall:8003 --out runs/gearbox-compose.yaml
+#   docker compose up -d --build
+#
+# Ollama runs on the host (host.docker.internal). Model keys come from each project's
+# .env if present; without them, requests fail cleanly (503), which is what CI checks.
+x-host: &host
+  extra_hosts: ["host.docker.internal:host-gateway"]
+
+services:
+  # --- Scout: research agent ------------------------------------------------------------
+  scout-db:
+    image: pgvector/pgvector:pg16
+    environment: {POSTGRES_USER: scout, POSTGRES_PASSWORD: scout, POSTGRES_DB: scout}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U scout -d scout"]
+      interval: 5s
+      retries: 20
+  scout-redis:
+    image: redis:7-alpine
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 5s, retries: 20}
+  scout-api:
+    build: ${PROJECTS_DIR:-..}/scout
+    env_file: [{path: "${PROJECTS_DIR:-..}/scout/.env", required: false}]
+    environment: &scout-env
+      DATABASE_URL: postgresql+psycopg://scout:scout@scout-db:5432/scout
+      REDIS_URL: redis://scout-redis:6379/0
+      JOBS_MODE: rq
+    ports: ["8001:8000"]
+    depends_on:
+      scout-db: {condition: service_healthy}
+      scout-redis: {condition: service_healthy}
+  scout-worker:
+    build: ${PROJECTS_DIR:-..}/scout
+    command: ["rq", "worker", "scout", "--url", "redis://scout-redis:6379/0",
+              "--worker-class", "rq.worker.SimpleWorker"]
+    env_file: [{path: "${PROJECTS_DIR:-..}/scout/.env", required: false}]
+    environment: *scout-env
+    depends_on:
+      scout-db: {condition: service_healthy}
+      scout-redis: {condition: service_healthy}
+
+  # --- Gearbox: router, routed by Pitwall --------------------------------------------------
+  gearbox-db:
+    image: postgres:16
+    environment: {POSTGRES_USER: gearbox, POSTGRES_PASSWORD: gearbox, POSTGRES_DB: gearbox}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gearbox -d gearbox"]
+      interval: 5s
+      retries: 20
+  gearbox-redis:
+    image: redis:7-alpine
+    healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 5s, retries: 20}
+  gearbox-api:
+    <<: *host
+    build: ${PROJECTS_DIR:-..}/gearbox
+    command: ["sh", "-c", "python -m alembic upgrade head && exec python -m gearbox.service"]
+    env_file: [{path: "${PROJECTS_DIR:-..}/gearbox/.env", required: false}]
+    environment:
+      DATABASE_URL: postgresql+psycopg://gearbox:gearbox@gearbox-db:5432/gearbox
+      REDIS_URL: redis://gearbox-redis:6379/0
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      CONFIG_PATH: /app/stack-config.yaml
+      HOST: 0.0.0.0
+    volumes:
+      - ./runs/gearbox-compose.yaml:/app/stack-config.yaml:ro
+    ports: ["8002:8002"]
+    depends_on:
+      gearbox-db: {condition: service_healthy}
+      gearbox-redis: {condition: service_healthy}
+      pitwall: {condition: service_started}
+
+  # --- Pitwall: the router model, its registry and monitoring --------------------------------
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.18.0
+    command: ["mlflow", "server", "--host", "0.0.0.0", "--port", "5000",
+              "--backend-store-uri", "sqlite:////mlflow/mlflow.db",
+              "--artifacts-destination", "/mlflow/artifacts"]
+    ports: ["5000:5000"]
+  pitwall:
+    <<: *host
+    build: ${PROJECTS_DIR:-..}/pitwall
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+    ports: ["8003:8003"]
+    depends_on: [mlflow]
+  prometheus:
+    image: prom/prometheus:v3.15.1
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${PROJECTS_DIR:-..}/pitwall/monitoring/prometheus/rules.yml:/etc/prometheus/rules.yml:ro
+    ports: ["9090:9090"]
+  grafana:
+    image: grafana/grafana:13.3.0
+    environment:
+      PROMETHEUS_URL: http://prometheus:9090
+      DASHBOARDS_DIR: /var/lib/grafana/dashboards
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+    volumes:
+      - ${PROJECTS_DIR:-..}/pitwall/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ${PROJECTS_DIR:-..}/pitwall/monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports: ["3000:3000"]
+    depends_on: [prometheus]
